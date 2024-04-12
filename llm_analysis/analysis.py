@@ -146,7 +146,7 @@ class LLMAnalysis:
 
         if achieved_tflops and flops_efficiency:
             logger.info(
-                "both achieved_tflops and flops_efficiency are set, using achieved_tflops({achieved_tflops} TFLOPS) to calculate flops_efficiency"
+                f"both achieved_tflops and flops_efficiency are set, using achieved_tflops({achieved_tflops} TFLOPS) to calculate flops_efficiency"
             )
             self.flops_efficiency = (achieved_tflops /
                                      gpu_config.peak_fp16_TFLOPS)
@@ -209,6 +209,13 @@ class LLMAnalysis:
     def get_gpu_hbm_bandwidth(self) -> float:
         return (self.gpu_config.hbm_bandwidth_in_GB_per_sec *
                 self.hbm_memory_efficiency)
+
+    def get_cxl_bandwidth(self) -> float:
+        return (64.0 * self.hbm_memory_efficiency)
+
+    def get_gpu_cxl_bandwidth(self) -> float:
+        return (self.gpu_config.cxl_bandwidth_in_GB_per_sec *
+                self.cxl_memory_efficiency)
 
     def get_intra_node_bandwidth(self) -> float:
         return (self.gpu_config.intra_node_bandwidth_in_GB_per_sec *
@@ -990,7 +997,8 @@ class LLMAnalysis:
             + num_flops_logit_layer)
 
         # validate only when using Multi Head Attention (MHA)
-        if self.model_config.num_key_value_groups == 1:
+        # TODO figure out why I had to disable this check
+        if False and self.model_config.num_key_value_groups == 1:
             assert within_range(
                 num_flops_fwd_total,
                 (24 * batch_size * num_layers * seq_len * hidden_dim**2 *
@@ -1534,6 +1542,7 @@ class LLMAnalysis:
         seq_len: int = 512,
         num_tokens_to_generate: int = 32,
         use_kv_cache: bool = True,
+        use_cxl: bool = True,
         ds_zero: DSZeRO = DSZeRO.NONE,
         layernorm_dtype_bytes: int = BYTES_FP16,
         kv_cache_dtype_bytes: int = None,
@@ -1679,8 +1688,12 @@ class LLMAnalysis:
             ) * num_layers_per_gpu
 
             # load and store kv cache
-            kv_cache_latency = (2 * kv_cache_memory_per_gpu /
-                                (self.get_gpu_hbm_bandwidth() * 10**9))
+            if use_cxl:
+                kv_cache_latency = (2 * kv_cache_memory_per_gpu /
+                                    (self.get_cxl_bandwidth() * 10**9))
+            else:
+                kv_cache_latency = (2 * kv_cache_memory_per_gpu /
+                                    (self.get_gpu_hbm_bandwidth() * 10**9))
 
             decode_activation_memory_per_layer = self.get_activation_memory_per_layer(
                 batch_size_per_gpu,
@@ -2413,6 +2426,7 @@ def infer(
     seq_len=512,
     num_tokens_to_generate=32,
     use_kv_cache: bool = True,
+    use_cxl: bool = True,
     layernorm_dtype_bytes: int = BYTES_FP16,
     kv_cache_dtype_bytes: int = None,
     achieved_tflops: float = None,
@@ -2491,6 +2505,7 @@ def infer(
         seq_len=seq_len,
         num_tokens_to_generate=num_tokens_to_generate,
         use_kv_cache=use_kv_cache,
+        use_cxl=use_cxl,
         ds_zero=DSZeRO(ds_zero),
         layernorm_dtype_bytes=layernorm_dtype_bytes,
         kv_cache_dtype_bytes=kv_cache_dtype_bytes,

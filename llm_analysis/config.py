@@ -215,12 +215,11 @@ def get_model_config_from_hf(name: str, ) -> ModelConfig:
     else:
         ffn_embed_dim = None
 
+    mlp_gated_linear_units = False
     if ffn_embed_dim:
         expansion_ratio = ffn_embed_dim / hidden_dim
         if expansion_ratio == 3.5:
             mlp_gated_linear_units = True
-    else:
-        mlp_gated_linear_units = False
 
     config = ModelConfig(
         name=canonical_model_name(name),

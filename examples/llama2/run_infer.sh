@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-gpu_name='a100-sxm-80gb'
+gpu_name='mi100-32gb'
 dtype_name="w16a16e16"
 output_dir='outputs_infer'
-model_name=upstage/Llama-2-70b-instruct-v2
+model_name=meta-llama/Llama-2-13b-hf
 batch_size_per_gpu=1
-tp_size=2
+tp_size=1
+pp_size=4
 output_file_suffix="-bs${batch_size_per_gpu}"
 cost_per_gpu_hour=2.21
-seq_len=256
-num_tokens_to_generate=512
+seq_len=15
+num_tokens_to_generate=200
 flops_efficiency=0.7
 hbm_memory_efficiency=0.9
 achieved_tflops=200                # will overwrite the flops_efficiency above
@@ -35,7 +36,8 @@ fi
 
 python -m llm_analysis.analysis infer --model_name=${model_name} --gpu_name=${gpu_name} --dtype_name=${dtype_name} -output_dir=${output_dir} --output-file-suffix=${output_file_suffix} \
     --seq_len=${seq_len} --num_tokens_to_generate=${num_tokens_to_generate} --batch_size_per_gpu=${batch_size_per_gpu} \
-    --tp_size=${tp_size} \
+    --tp_size=${tp_size} --pp_size=${pp_size} \
     --cost_per_gpu_hour=${cost_per_gpu_hour} \
-    --flops_efficiency=${flops_efficiency} --hbm_memory_efficiency=${hbm_memory_efficiency} --log_level DEBUG
-# --achieved_tflops=${achieved_tflops} --achieved_memory_bandwidth_GBs=${achieved_memory_bandwidth_GBs}
+    --flops_efficiency=${flops_efficiency} --hbm_memory_efficiency=${hbm_memory_efficiency} --log_level DEBUG \
+    --use_cxl True --use_kv_cache True
+    # --achieved_tflops=${achieved_tflops} --achieved_memory_bandwidth_GBs=${achieved_memory_bandwidth_GBs}
